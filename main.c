@@ -6,28 +6,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "utils.h"
+
 #define MAX_PATH 4096
-#define PORT 8086
-
-size_t get_file_length(char *filename)
-{
-	FILE *fptr = fopen(filename, "r");
-	if (fptr == NULL)
-	{
-		return 0;
-	}
-
-	size_t length = 0;
-
-	while (fgetc(fptr) != EOF)
-	{
-		length++;
-	}
-
-	fclose(fptr);
-
-	return length;
-}
+#define PORT 8080
 
 void send_file(int connection, char *path)
 {
@@ -43,7 +25,7 @@ void send_file(int connection, char *path)
 	size_t content_length = get_file_length(file_path);
 
 	char buffer[4096];
-	snprintf(buffer, 4096, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\nContent-Type: text/html\r\n\r\n", content_length);
+	snprintf(buffer, 4096, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\nContent-Type: %s\r\n\r\n", content_length, get_mime_type(file_path));
 
 	send(connection, buffer, strlen(buffer), 0);
 

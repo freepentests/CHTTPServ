@@ -59,7 +59,13 @@ void *handle_connection(void *connection)
 	char method[7], path[257], protocol[9];
 		
 	sscanf(buffer, "%6s %256s %8s", method, path, protocol);
-	send_file(*((int *)connection), path);
+	if (strcmp(path, "/") == 0)
+	{
+		send_file(*((int *)connection), "/index.html");
+	} else
+	{
+		send_file(*((int *)connection), path);
+	}
 
 	close(*((int *)connection));
 	free(connection);

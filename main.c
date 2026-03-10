@@ -7,11 +7,16 @@
 #include <stdio.h>
 
 #define MAX_PATH 4096
-#define PORT 8080
+#define PORT 8086
 
 size_t get_file_length(char *filename)
 {
 	FILE *fptr = fopen(filename, "r");
+	if (fptr == NULL)
+	{
+		return 0;
+	}
+
 	size_t length = 0;
 
 	while (fgetc(fptr) != EOF)
@@ -26,13 +31,14 @@ size_t get_file_length(char *filename)
 
 void send_file(int connection, char *path)
 {
-	char file_path[MAX_PATH];
-	snprintf(file_path, MAX_PATH, "./static%s", path);
-	if (realpath(file_path, NULL) == NULL) return;
-	strncpy(file_path, realpath(file_path, NULL), MAX_PATH);
+	char fpath[MAX_PATH];
+	snprintf(fpath, MAX_PATH, "./static%s", path);
+	char *file_path = realpath(fpath, NULL);
+	if (file_path == NULL) return;
 
 	char *cwd = realpath("./static", NULL);
 	if (strncmp(cwd, file_path, strlen(cwd)) != 0) return; // if the path doesn't begin with the static directory then it might be a path traversal
+	free(cwd);
 
 	size_t content_length = get_file_length(file_path);
 
@@ -42,6 +48,11 @@ void send_file(int connection, char *path)
 	send(connection, buffer, strlen(buffer), 0);
 
 	FILE *fptr = fopen(file_path, "r");
+	free(file_path);
+	if (fptr == NULL)
+	{
+		return;
+	}
 
 	char *file_data = malloc(content_length);
 	if (file_data == NULL)
@@ -53,6 +64,8 @@ void send_file(int connection, char *path)
 	fread(file_data, sizeof(char), content_length, fptr);
 
 	send(connection, file_data, content_length, 0);
+	free(file_data);
+	file_data = NULL;
 
 	fclose(fptr);
 }
@@ -67,6 +80,7 @@ void *handle_connection(void *connection)
 	send_file(*((int *)connection), path);
 
 	close(*((int *)connection));
+	free(connection);
 	return NULL;
 }
 
@@ -82,14 +96,14 @@ int main(void)
 	int bind_result = bind(serv_fd, (struct sockaddr *)&sockaddr, socklen);
 	if (bind_result < 0)
 	{
-		printf("Could't bind to port. Make sure the port isn't in use.");
+		printf("Could't bind to port. Make sure the port isn't in use.\n");
 		return EXIT_FAILURE;
 	}
 
-	int listen_result = listen(serv_fd, 64);
+	int listen_result = listen(serv_fd, 128);
 	if (listen_result < 0)
 	{
-		printf("Couldn't start listening.");
+		printf("Couldn't start listening.\n");
 		return EXIT_FAILURE;
 	}
 
@@ -98,7 +112,10 @@ int main(void)
 		int connection = accept(serv_fd, (struct sockaddr *)&sockaddr, &socklen);
 		
 		pthread_t thread;
-		pthread_create(&thread, NULL, handle_connection, &connection);
+		int *arg = malloc(sizeof(int));
+		*arg = connection;
+		pthread_create(&thread, NULL, handle_connection, arg);
+		pthread_detach(thread);
 	}
 
 	close(serv_fd);
